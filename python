@@ -1,0 +1,61 @@
+from flask import Flask, render_template, request
+import requests, os
+
+app = Flask(__name__)
+
+# Set your API key and endpoint
+API_KEY = "YOUR_API_KEY"
+ENDPOINT = "https://api.cognitive.microsofttranslator.com/translate"
+
+@app.route("/", methods=["GET", "POST"])
+def translate():
+    translation = ""
+    if request.method == "POST":
+        text = request.form["text"]
+        source = request.form["source_lang"]
+        target = request.form["target_lang"]
+
+        headers = {
+            "Ocp-Apim-Subscription-Key": API_KEY,
+            "Ocp-Apim-Subscription-Region": "YOUR_REGION",
+            "Content-type": "application/json"
+        }
+        params = {"api-version": "3.0", "from": source, "to": target}
+        body = [{"text": text}]
+
+        response = requests.post(ENDPOINT, headers=headers, params=params, json=body)
+        translation = response.json()[0]["translations"][0]["text"]
+
+    return render_template("index.html", translation=translation)
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
+@app.route("/speak", methods=["POST"])
+def speak():
+    text = request.form["translation"]
+
+    speech_endpoint = "https://YOUR_REGION.tts.speech.microsoft.com/cognitiveservices/v1"
+    headers = {
+        "Ocp-Apim-Subscription-Key": API_KEY,
+        "Content-Type": "application/ssml+xml",
+        "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3"
+    }
+
+    # SSML (Speech Synthesis Markup Language)
+    body = f"""
+    <speak version='1.0' xml:lang='en-US'>
+        <voice xml:lang='en-US' xml:gender='Female' name='en-US-JennyNeural'>
+            {text}
+        </voice>
+    </speak>
+    """
+
+    response = requests.post(speech_endpoint, headers=headers, data=body)
+    audio = response.content
+
+    # Save audio file temporarily
+    with open("static/output.mp3", "wb") as f:
+        f.write(audio)
+
+    return render_template("index.html", translation=text, audio_file="output.mp3")
